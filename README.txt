@@ -1,13 +1,3 @@
-POWERBUILDING TRACKER V2.1
+POWERBUILDING TRACKER V3.0
 
-CHANGES
-- Fixes iPhone status bar and Dynamic Island overlap.
-- Active workouts autosave and can be left without being discarded.
-- Back leaves the workout safely; Discard is now a separate action.
-- Resume workout card appears on History, Progress, and Routine.
-- Improved spacing, touch targets, transitions, and mobile polish.
-- Existing history remains stored under the same browser-storage key.
-
-GITHUB UPDATE
-Upload every item in this folder to the root of your existing repository and commit to main.
-Wait 1-3 minutes, reopen the app, and tap Update if the update banner appears.
+5/3/1 main lifts, backdated logging, editable dates, modern dashboard, autosave/resume, routine editing, rest timer, history, progress, PRs, and backups. Upload all files to the root of your GitHub Pages repository and commit to main. Existing local data is preserved.
