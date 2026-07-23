@@ -407,19 +407,50 @@ function drawChart(points,e){
   labels.forEach(pt=>{const i=points.indexOf(pt);ctx.fillText(shortDate(pt.date),x(i),h-10)});
 }
 
+
 function renderRoutine(){
   const root=$("#view-routine");
   root.innerHTML=`
-    <div class="section-head"><div><h2>Routine</h2><p>Edit exercises, targets, and progression increments.</p></div><button class="btn small danger" id="resetRoutine">Reset routine</button></div>
-    <div class="note">Your main squat, bench, deadlift, and incline work is intentionally not included. Changes here save automatically.</div>
+    <div class="section-head">
+      <div><h2>Routine</h2><p>Edit workout days, exercise lists, targets, and progression.</p></div>
+      <button class="btn small danger" id="resetRoutine">Reset routine</button>
+    </div>
+    <div class="note">Changes save automatically. You can rename workouts, edit the main-lift note, add or remove exercises, and reorder entire workout days.</div>
     <div style="height:12px"></div>
-    ${store.routines.map((r,ri)=>editorDay(r,ri)).join("")}`;
+    <div id="routineDays">
+      ${store.routines.map((r,ri)=>editorDay(r,ri)).join("")}
+    </div>
+    <button class="btn secondary wide" id="addWorkoutDay">Add workout day</button>`;
   bindRoutineEditor();
 }
 
 function editorDay(r,ri){
   return `<details class="editor-card" ${ri===0?"open":""}>
-    <summary><span>${esc(r.label)} · ${esc(r.name)}</span><span>＋</span></summary>
+    <summary>
+      <span>${esc(r.label||`Day ${ri+1}`)} · ${esc(r.name)}</span>
+      <span>＋</span>
+    </summary>
+
+    <div class="workout-editor-head">
+      <div class="select-row">
+        <label>Day label</label>
+        <input class="field" value="${attr(r.label||`Day ${ri+1}`)}" data-day-edit="${ri}-label">
+      </div>
+      <div class="select-row">
+        <label>Workout name</label>
+        <input class="field" value="${attr(r.name)}" data-day-edit="${ri}-name">
+      </div>
+      <div class="select-row">
+        <label>Main-lift note</label>
+        <input class="field" value="${attr(r.mainLift||"")}" data-day-edit="${ri}-mainLift">
+      </div>
+      <div class="editor-buttons">
+        <button class="btn small secondary" data-day-up="${ri}">↑ Move day</button>
+        <button class="btn small secondary" data-day-down="${ri}">↓ Move day</button>
+        <button class="btn small danger" data-delete-day="${ri}">Delete day</button>
+      </div>
+    </div>
+
     <div class="editor-list">
       ${r.exercises.map((e,ei)=>editorExercise(e,ri,ei)).join("")}
       <button class="btn secondary wide" data-add-ex="${ri}">Add exercise</button>
@@ -429,7 +460,10 @@ function editorDay(r,ri){
 
 function editorExercise(e,ri,ei){
   return `<div class="editor-exercise">
-    <div class="name-row"><input class="field" value="${attr(e.name)}" data-edit="${ri}-${ei}-name"><button class="btn small danger" data-delete-ex="${ri}-${ei}">✕</button></div>
+    <div class="name-row">
+      <input class="field" value="${attr(e.name)}" data-edit="${ri}-${ei}-name">
+      <button class="btn small danger" data-delete-ex="${ri}-${ei}">✕</button>
+    </div>
     <div class="editor-grid">
       <label>Sets<input class="field" type="number" min="1" value="${e.sets}" data-edit="${ri}-${ei}-sets"></label>
       <label>Min<input class="field" type="number" step="any" value="${e.min}" data-edit="${ri}-${ei}-min"></label>
@@ -442,6 +476,7 @@ function editorExercise(e,ri,ei){
     </div>
     <div class="editor-grid" style="grid-template-columns:1fr">
       <label>Weight label<input class="field" value="${attr(e.weightUnit)}" data-edit="${ri}-${ei}-weightUnit"></label>
+      <label>Exercise note<input class="field" value="${attr(e.note||"")}" data-edit="${ri}-${ei}-note"></label>
     </div>
     <div class="editor-buttons">
       <button class="btn small secondary" data-move-up="${ri}-${ei}">↑ Up</button>
@@ -451,33 +486,103 @@ function editorExercise(e,ri,ei){
 }
 
 function bindRoutineEditor(){
-  $$("[data-edit]").forEach(el=>el.addEventListener("change",()=>{
-    const [ri,ei,key]=el.dataset.edit.split("-");
-    const e=store.routines[+ri].exercises[+ei];
-    if(["sets","min","max","nextWeight","increment"].includes(key)){
-      e[key]=el.value===""?null:num(el.value);
-      if(key==="sets")e.sets=Math.max(1,Math.round(e.sets||1));
-    }else e[key]=el.value;
-    saveStore();toast("Routine updated.");
-  }));
+  $$("[data-day-edit]").forEach(el=>{
+    const save=()=>{
+      const first=el.dataset.dayEdit.indexOf("-");
+      const ri=+el.dataset.dayEdit.slice(0,first);
+      const key=el.dataset.dayEdit.slice(first+1);
+      store.routines[ri][key]=el.value;
+      saveStore();
+    };
+    el.addEventListener("input",save);
+    el.addEventListener("change",()=>{save();renderRoutine();toast("Workout updated.");});
+  });
+
+  $$("[data-edit]").forEach(el=>{
+    const save=()=>{
+      const parts=el.dataset.edit.split("-");
+      const ri=+parts.shift(), ei=+parts.shift(), key=parts.join("-");
+      const e=store.routines[ri].exercises[ei];
+      if(["sets","min","max","nextWeight","increment"].includes(key)){
+        e[key]=el.value===""?null:num(el.value);
+        if(key==="sets") e.sets=Math.max(1,Math.round(e.sets||1));
+      }else{
+        e[key]=el.value;
+      }
+      saveStore();
+    };
+    el.addEventListener("input",save);
+    el.addEventListener("change",()=>{save();toast("Exercise updated.");});
+  });
+
   $$("[data-delete-ex]").forEach(b=>b.addEventListener("click",()=>{
     const [ri,ei]=b.dataset.deleteEx.split("-").map(Number);
-    if(confirm("Remove this exercise?")){store.routines[ri].exercises.splice(ei,1);saveStore();renderRoutine();}
+    if(confirm("Remove this exercise?")){
+      store.routines[ri].exercises.splice(ei,1);
+      saveStore();renderRoutine();toast("Exercise removed.");
+    }
   }));
+
   $$("[data-add-ex]").forEach(b=>b.addEventListener("click",()=>{
-    const ri=+b.dataset.addEx;store.routines[ri].exercises.push(ex(cryptoId(),"New Exercise",3,8,12,null,5,"reps","lb"));saveStore();renderRoutine();
+    const ri=+b.dataset.addEx;
+    store.routines[ri].exercises.push(ex(cryptoId(),"New Exercise",3,8,12,null,5,"reps","lb"));
+    saveStore();renderRoutine();
   }));
+
   $$("[data-move-up]").forEach(b=>b.addEventListener("click",()=>moveExercise(b.dataset.moveUp,-1)));
   $$("[data-move-down]").forEach(b=>b.addEventListener("click",()=>moveExercise(b.dataset.moveDown,1)));
+
+  $$("[data-day-up]").forEach(b=>b.addEventListener("click",()=>moveWorkoutDay(+b.dataset.dayUp,-1)));
+  $$("[data-day-down]").forEach(b=>b.addEventListener("click",()=>moveWorkoutDay(+b.dataset.dayDown,1)));
+  $$("[data-delete-day]").forEach(b=>b.addEventListener("click",()=>{
+    const ri=+b.dataset.deleteDay;
+    if(store.routines.length<=1){toast("Keep at least one workout day.");return;}
+    if(confirm(`Delete ${store.routines[ri].name}?`)){
+      store.routines.splice(ri,1);
+      normalizeDayLabels();
+      saveStore();renderAll();toast("Workout day deleted.");
+    }
+  }));
+
+  $("#addWorkoutDay").addEventListener("click",()=>{
+    const n=store.routines.length+1;
+    store.routines.push({
+      id:cryptoId(),
+      name:"New Workout",
+      label:`Day ${n}`,
+      mainLift:"Add your main-lift note",
+      exercises:[ex(cryptoId(),"New Exercise",3,8,12,null,5,"reps","lb")]
+    });
+    saveStore();renderAll();toast("Workout day added.");
+  });
+
   $("#resetRoutine").addEventListener("click",()=>{
-    if(confirm("Reset only the routine to the original preloaded plan? Workout history will stay.")){store.routines=deepClone(defaultRoutines);saveStore();renderAll();toast("Routine reset.");}
+    if(confirm("Reset only the routine to the original preloaded plan? Workout history will stay.")){
+      store.routines=deepClone(defaultRoutines);
+      saveStore();renderAll();toast("Routine reset.");
+    }
   });
 }
 
 function moveExercise(key,dir){
   const [ri,ei]=key.split("-").map(Number),arr=store.routines[ri].exercises,n=ei+dir;
   if(n<0||n>=arr.length)return;
-  [arr[ei],arr[n]]=[arr[n],arr[ei]];saveStore();renderRoutine();
+  [arr[ei],arr[n]]=[arr[n],arr[ei]];
+  saveStore();renderRoutine();
+}
+
+function moveWorkoutDay(index,dir){
+  const next=index+dir;
+  if(next<0||next>=store.routines.length)return;
+  [store.routines[index],store.routines[next]]=[store.routines[next],store.routines[index]];
+  normalizeDayLabels();
+  saveStore();renderAll();toast("Workout order updated.");
+}
+
+function normalizeDayLabels(){
+  store.routines.forEach((r,i)=>{
+    if(/^Day \d+$/i.test(r.label||"")) r.label=`Day ${i+1}`;
+  });
 }
 
 function exportData(){
