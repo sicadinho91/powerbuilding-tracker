@@ -1,11 +1,11 @@
 {
   "name": "Powerbuilding Tracker",
-  "short_name": "Lifts",
-  "description": "Accessory and core tracker for a 5/3/1 powerbuilding routine.",
+  "short_name": "Powerbuilding",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0b0e13",
-  "theme_color": "#0b0e13",
+  "background_color": "#0b0f16",
+  "theme_color": "#0b0f16",
+  "description": "Editable powerbuilding accessory and core tracker.",
   "icons": [
     {
       "src": "./icons/icon-192.png",
